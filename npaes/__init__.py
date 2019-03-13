@@ -431,11 +431,11 @@ def encrypt_raw(state, key):
     xor(state, exkeys[0], out=state)
 
     # Intermediate rounds
-    for i in range(1, nr):
+    for ek in exkeys[1:nr]:
         sub_bytes(state, out=state)
         shift_rows(state, out=state)
         mix_columns(state, out=state)
-        xor(state, exkeys[i], out=state)
+        xor(state, ek, out=state)
 
     # Final round before a final XOR.  No mixColumns here
     sub_bytes(state, out=state)
@@ -528,8 +528,8 @@ def decrypt_raw(state, key):
     inv_shift_rows(state, out=state)
     inv_sub_bytes(state, out=state)
 
-    for i in range(nr - 1, 0, -1):
-        xor(state, exkeys[i], out=state)
+    for ek in exkeys[nr - 1:0:-1]:
+        xor(state, ek, out=state)
         inv_mix_columns(state, out=state)
         inv_shift_rows(state, out=state)
         inv_sub_bytes(state, out=state)
