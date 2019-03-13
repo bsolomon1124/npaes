@@ -9,13 +9,15 @@ from npaes import (
     array_to_hex,
     hex_to_array,
     mix_columns,
-    inv_mix_columns,
     shift_rows,
     sub_bytes,
     expand_key,
     encrypt_raw,
     decrypt_raw,
     RCON,
+    inv_mix_columns,
+    inv_sub_bytes,
+    inv_shift_rows,
 )
 
 # ---------------------------------------------------------------------
@@ -97,8 +99,12 @@ def test_inv_mix_columns(before, after):
 
 
 def test_array_to_hex():
-    assert array_to_hex(hex_to_array("2b7e1516", ndim=1)) == '0x2b 0x7e 0x15 0x16'
-    assert array_to_hex(hex_to_array("e0 c8 d9 85 92 63 b1 b8 7f 63 35 be e8 c0 50 01", ndim=1)) == '0xe0 0xc8 0xd9 0x85 0x92 0x63 0xb1 0xb8 0x7f 0x63 0x35 0xbe 0xe8 0xc0 0x50 0x1'
+    a = "2b7e1516"
+    b = "0x2b 0x7e 0x15 0x16"
+    assert array_to_hex(hex_to_array(a, ndim=1)) == b
+    a = "e0 c8 d9 85 92 63 b1 b8 7f 63 35 be e8 c0 50 01"
+    b = "0xe0 0xc8 0xd9 0x85 0x92 0x63 0xb1 0xb8 0x7f 0x63 0x35 0xbe 0xe8 0xc0 0x50 0x1"
+    assert array_to_hex(hex_to_array(a, ndim=1)) == b
 
 
 # ---------------------------------------------------------------------
@@ -418,6 +424,14 @@ def test_expand_key_rounds(rounds):
         assert array_equal(mix_columns(after_shift_rows), after_mix_columns), "bad mix_columns() at %d" % i
 
 
+@pytest.mark.parametrize("rounds", [rounds])
+def test_inv_expand_key_rounds(rounds):
+    for i, (start_of_round, after_sub_bytes, after_shift_rows, after_mix_columns, roundkey) in enumerate(rounds):
+        assert array_equal(inv_sub_bytes(after_sub_bytes), start_of_round), "bad sub_bytes() at %d" % i
+        assert array_equal(inv_shift_rows(after_shift_rows), after_sub_bytes), "bad shift_rows() at %d" % i
+        assert array_equal(inv_mix_columns(after_mix_columns), after_shift_rows), "bad mix_columns() at %d" % i
+
+
 def test_encrypt_small():
     # Test of just start+key -> target.  This is done more comprehensively
     # in Appendix C tests below as well
@@ -657,212 +671,20 @@ def test_example_vectors(vectors):
     assert array_equal(encrypt_raw(start, key), tgt)
 
 
-# ---------------------------------------------------------------------
-# FIPS197 Appendix C - Example Vectors (Decryption)
-
-inv_aes128_vectors = (
-    "69c4e0d86a7b0430d8cdb78070b4c55a",  # round[ 0].iinput
-    "13111d7fe3944a17f307a78b4d2b30c5",  # round[ 0].ik_sch
-    "7ad5fda789ef4e272bca100b3d9ff59f",  # round[ 1].istart
-    "7a9f102789d5f50b2beffd9f3dca4ea7",  # round[ 1].is_row
-    "bd6e7c3df2b5779e0b61216e8b10b689",  # round[ 1].is_box
-    "549932d1f08557681093ed9cbe2c974e",  # round[ 1].ik_sch
-    "e9f74eec023020f61bf2ccf2353c21c7",  # round[ 1].ik_add
-    "54d990a16ba09ab596bbf40ea111702f",  # round[ 2].istart
-    "5411f4b56bd9700e96a0902fa1bb9aa1",  # round[ 2].is_row
-    "fde3bad205e5d0d73547964ef1fe37f1",  # round[ 2].is_box
-    "47438735a41c65b9e016baf4aebf7ad2",  # round[ 2].ik_sch
-    "baa03de7a1f9b56ed5512cba5f414d23",  # round[ 2].ik_add
-    "3e1c22c0b6fcbf768da85067f6170495",  # round[ 3].istart
-    "3e175076b61c04678dfc2295f6a8bfc0",  # round[ 3].is_row
-    "d1876c0f79c4300ab45594add66ff41f",  # round[ 3].is_box
-    "14f9701ae35fe28c440adf4d4ea9c026",  # round[ 3].ik_sch
-    "c57e1c159a9bd286f05f4be098c63439",  # round[ 3].ik_add
-    "b458124c68b68a014b99f82e5f15554c",  # round[ 4].istart
-    "b415f8016858552e4bb6124c5f998a4c",  # round[ 4].is_row
-    "c62fe109f75eedc3cc79395d84f9cf5d",  # round[ 4].is_box
-    "5e390f7df7a69296a7553dc10aa31f6b",  # round[ 4].ik_sch
-    "9816ee7400f87f556b2c049c8e5ad036",  # round[ 4].ik_add
-    "e8dab6901477d4653ff7f5e2e747dd4f",  # round[ 5].istart
-    "e847f56514dadde23f77b64fe7f7d490",  # round[ 5].is_row
-    "c81677bc9b7ac93b25027992b0261996",  # round[ 5].is_box
-    "3caaa3e8a99f9deb50f3af57adf622aa",  # round[ 5].ik_sch
-    "f4bcd45432e554d075f1d6c51dd03b3c",  # round[ 5].ik_add
-    "36339d50f9b539269f2c092dc4406d23",  # round[ 6].istart
-    "36400926f9336d2d9fb59d23c42c3950",  # round[ 6].is_row
-    "247240236966b3fa6ed2753288425b6c",  # round[ 6].is_box
-    "47f7f7bc95353e03f96c32bcfd058dfd",  # round[ 6].ik_sch
-    "6385b79ffc538df997be478e7547d691",  # round[ 6].ik_add
-    "2d6d7ef03f33e334093602dd5bfb12c7",  # round[ 7].istart
-    "2dfb02343f6d12dd09337ec75b36e3f0",  # round[ 7].is_row
-    "fa636a2825b339c940668a3157244d17",  # round[ 7].is_box
-    "b6ff744ed2c2c9bf6c590cbf0469bf41",  # round[ 7].ik_sch
-    "4c9c1e66f771f0762c3f868e534df256",  # round[ 7].ik_add
-    "3bd92268fc74fb735767cbe0c0590e2d",  # round[ 8].istart
-    "3b59cb73fcd90ee05774222dc067fb68",  # round[ 8].is_row
-    "4915598f55e5d7a0daca94fa1f0a63f7",  # round[ 8].is_box
-    "b692cf0b643dbdf1be9bc5006830b3fe",  # round[ 8].ik_sch
-    "ff87968431d86a51645151fa773ad009",  # round[ 8].ik_add
-    "a7be1a6997ad739bd8c9ca451f618b61",  # round[ 9].istart
-    "a761ca9b97be8b45d8ad1a611fc97369",  # round[ 9].is_row
-    "89d810e8855ace682d1843d8cb128fe4",  # round[ 9].is_box
-    "d6aa74fdd2af72fadaa678f1d6ab76fe",  # round[ 9].ik_sch
-    "5f72641557f5bc92f7be3b291db9f91a",  # round[ 9].ik_add
-    "6353e08c0960e104cd70b751bacad0e7",  # round[10].istart
-    "63cab7040953d051cd60e0e7ba70e18c",  # round[10].is_row
-    "00102030405060708090a0b0c0d0e0f0",  # round[10].is_box
-    "000102030405060708090a0b0c0d0e0f",  # round[10].ik_sch
-    "00112233445566778899aabbccddeeff",  # round[10].ioutput
-)
-
-inv_aes192_vectors = (
-    "dda97ca4864cdfe06eaf70a0ec0d7191",  # round[ 0].iinput
-    "a4970a331a78dc09c418c271e3a41d5d",  # round[ 0].ik_sch
-    "793e76979c3403e9aab7b2d10fa96ccc",  # round[ 1].istart
-    "79a9b2e99c3e6cd1aa3476cc0fb70397",  # round[ 1].is_row
-    "afb73eeb1cd1b85162280f27fb20d585",  # round[ 1].is_box
-    "de601e7827bcdf2ca223800fd8aeda32",  # round[ 1].ik_sch
-    "71d720933b6d677dc00b8f28238e0fb7",  # round[ 1].ik_add
-    "c494bffae62322ab4bb5dc4e6fce69dd",  # round[ 2].istart
-    "c4cedcabe694694e4b23bfdd6fb522fa",  # round[ 2].is_row
-    "88ec930ef5e7e4b6cc32f4c906d29414",  # round[ 2].is_box
-    "859f5f237a8d5a3dc0c02952beefd63a",  # round[ 2].ik_sch
-    "0d73cc2d8f6abe8b0cf2dd9bb83d422e",  # round[ 2].ik_add
-    "d37e3705907a1a208d1c371e8c6fbfb5",  # round[ 3].istart
-    "d36f3720907ebf1e8d7a37b58c1c1a05",  # round[ 3].is_row
-    "a906b254968af4e9b4bdb2d2f0c44336",  # round[ 3].is_box
-    "dd7e0e887e2fff68608fc842f9dcc154",  # round[ 3].ik_sch
-    "7478bcdce8a50b81d4327a9009188262",  # round[ 3].ik_add
-    "406c501076d70066e17057ca09fc7b7f",  # round[ 4].istart
-    "40fc5766766c7bcae1d7507f09700010",  # round[ 4].is_row
-    "7255dad30fb80310e00d6c6b40d0527c",  # round[ 4].is_box
-    "1ea0372a995309167c439e77ff12051e",  # round[ 4].ik_sch
-    "6cf5edf996eb0a069c4ef21cbfc25762",  # round[ 4].ik_add
-    "fe7c7e71fe7f807047b95193f67b8e4b",  # round[ 5].istart
-    "fe7b5170fe7c8e93477f7e4bf6b98071",  # round[ 5].is_row
-    "0c0370d00c01e622166b8accd6db3a2c",  # round[ 5].is_box
-    "e510976183519b6934157c9ea351f1e0",  # round[ 5].ik_sch
-    "e913e7b18f507d4b227ef652758acbcc",  # round[ 5].ik_add
-    "85e5c8042f8614549ebca17b277272df",  # round[ 6].istart
-    "8572a1542fe5727b9e86c8df27bc1404",  # round[ 6].is_row
-    "671ef1fd4e2a1e03dfdcb1ef3d789b30",  # round[ 6].is_box
-    "f501857297448d7ebdf1c6ca87f33e3c",  # round[ 6].ik_sch
-    "921f748fd96e937d622d7725ba8ba50c",  # round[ 6].ik_add
-    "cd54c7283864c0c55d4c727e90c9a465",  # round[ 7].istart
-    "cdc972c53854a47e5d64c765904cc028",  # round[ 7].is_row
-    "80121e0776fd1d8a8d8c31bc965d1fee",  # round[ 7].is_box
-    "2ab54bb43a02f8f662e3a95d66410c08",  # round[ 7].ik_sch
-    "aaa755b34cffe57cef6f98e1f01c13e6",  # round[ 7].ik_add
-    "93faa123c2903f4743e4dd83431692de",  # round[ 8].istart
-    "9316dd47c2fa92834390a1de43e43f23",  # round[ 8].is_row
-    "22ffc916a81474416496f19c64ae2532",  # round[ 8].is_box
-    "58e151ab04a2a5557effb5416245080c",  # round[ 8].ik_sch
-    "7a1e98bdacb6d1141a6944dd06eb2d3e",  # round[ 8].ik_add
-    "68cc08ed0abbd2bc642ef555244ae878",  # round[ 9].istart
-    "684af5bc0acce85564bb0878242ed2ed",  # round[ 9].is_row
-    "f75c7778a327c8ed8cfebfc1a6c37f53",  # round[ 9].is_box
-    "40f949b31cbabd4d48f043b810b7b342",  # round[ 9].ik_sch
-    "b7a53ecbbf9d75a0c40efc79b674cc11",  # round[ 9].ik_add
-    "1fb5430ef0accf64aa370cde3d77792c",  # round[10].istart
-    "1f770c64f0b579deaaac432c3d37cf0e",  # round[10].is_row
-    "cb02818c17d2af9c62aa64428bb25fd7",  # round[10].is_box
-    "544afef55847f0fa4856e2e95c43f4fe",  # round[10].ik_sch
-    "9f487f794f955f662afc86abd7f1ab29",  # round[10].ik_add
-    "84e1dd691a41d76f792d389783fbac70",  # round[11].istart
-    "84fb386f1ae1ac977941dd70832dd769",  # round[11].is_row
-    "4f63760643e0aa85aff8c9d041fa0de4",  # round[11].is_box
-    "10111213141516175846f2f95c43f4fe",  # round[11].ik_sch
-    "5f72641557f5bc92f7be3b291db9f91a",  # round[11].ik_add
-    "6353e08c0960e104cd70b751bacad0e7",  # round[12].istart
-    "63cab7040953d051cd60e0e7ba70e18c",  # round[12].is_row
-    "00102030405060708090a0b0c0d0e0f0",  # round[12].is_box
-    "000102030405060708090a0b0c0d0e0f",  # round[12].ik_sch
-    "00112233445566778899aabbccddeeff",  # round[12].ioutput
-)
-
-inv_aes256_vectors = (
-    "8ea2b7ca516745bfeafc49904b496089",  # round[ 0].iinput
-    "24fc79ccbf0979e9371ac23c6d68de36",  # round[ 0].ik_sch
-    "aa5ece06ee6e3c56dde68bac2621bebf",  # round[ 1].istart
-    "aa218b56ee5ebeacdd6ecebf26e63c06",  # round[ 1].is_row
-    "627bceb9999d5aaac945ecf423f56da5",  # round[ 1].is_box
-    "4e5a6699a9f24fe07e572baacdf8cdea",  # round[ 1].ik_sch
-    "2c21a820306f154ab712c75eee0da04f",  # round[ 1].ik_add
-    "d1ed44fd1a0f3f2afa4ff27b7c332a69",  # round[ 2].istart
-    "d133f22a1aed2a7bfa0f44697c4f3ffd",  # round[ 2].is_row
-    "516604954353950314fb86e401922521",  # round[ 2].is_box
-    "2541fe719bf500258813bbd55a721c0a",  # round[ 2].ik_sch
-    "7427fae4d8a695269ce83d315be0392b",  # round[ 2].ik_add
-    "cfb4dbedf4093808538502ac33de185c",  # round[ 3].istart
-    "cfde0208f4b418ac5309db5c338538ed",  # round[ 3].is_row
-    "5f9c6abfbac634aa50409fa766677653",  # round[ 3].is_box
-    "f01afafee7a82979d7a5644ab3afe640",  # round[ 3].ik_sch
-    "af8690415d6e1dd387e5fbedd5c89013",  # round[ 3].ik_add
-    "78e2acce741ed5425100c5e0e23b80c7",  # round[ 4].istart
-    "783bc54274e280e0511eacc7e200d5ce",  # round[ 4].is_row
-    "c14907f6ca3b3aa070e9aa313b52b5ec",  # round[ 4].is_box
-    "7ccff71cbeb4fe5413e6bbf0d261a7df",  # round[ 4].ik_sch
-    "bd86f0ea748fc4f4630f11c1e9331233",  # round[ 4].ik_add
-    "d6f3d9dda6279bd1430d52a0e513f3fe",  # round[ 5].istart
-    "d61352d1a6f3f3a04327d9fee50d9bdd",  # round[ 5].is_row
-    "4a824851c57e7e47643de50c2af3e8c9",  # round[ 5].is_box
-    "45f5a66017b2d387300d4d33640a820a",  # round[ 5].ik_sch
-    "0f77ee31d2ccadc05430a83f4ef96ac3",  # round[ 5].ik_add
-    "beb50aa6cff856126b0d6aff45c25dc4",  # round[ 6].istart
-    "bec26a12cfb55dff6bf80ac4450d56a6",  # round[ 6].is_row
-    "5aa858395fd28d7d05e1a38868f3b9c5",  # round[ 6].is_box
-    "0bdc905fc27b0948ad5245a4c1871c2f",  # round[ 6].ik_sch
-    "5174c8669da98435a8b3e62ca974a5ea",  # round[ 6].ik_add
-    "f6e062ff507458f9be50497656ed654c",  # round[ 7].istart
-    "f6ed49f950e06576be74624c565058ff",  # round[ 7].is_row
-    "d653a4696ca0bc0f5acaab5db96c5e7d",  # round[ 7].is_box
-    "3de23a75524775e727bf9eb45407cf39",  # round[ 7].ik_sch
-    "ebb19e1c3ee7c9e87d7535e9ed6b9144",  # round[ 7].ik_add
-    "d22f0c291ffe031a789d83b2ecc5364c",  # round[ 8].istart
-    "d2c5831a1f2f36b278fe0c4cec9d0329",  # round[ 8].is_row
-    "7f074143cb4e243ec10c815d8375d54c",  # round[ 8].is_box
-    "c656827fc9a799176f294cec6cd5598b",  # round[ 8].ik_sch
-    "b951c33c02e9bd29ae25cdb1efa08cc7",  # round[ 8].ik_add
-    "2e6e7a2dafc6eef83a86ace7c25ba934",  # round[ 9].istart
-    "2e5bacf8af6ea9e73ac67a34c286ee2d",  # round[ 9].is_row
-    "c357aae11b45b7b0a2c7bd28a8dc99fa",  # round[ 9].is_box
-    "6de1f1486fa54f9275f8eb5373b8518d",  # round[ 9].ik_sch
-    "aeb65ba974e0f822d73f567bdb64c877",  # round[ 9].ik_add
-    "9cf0a62049fd59a399518984f26be178",  # round[10].istart
-    "9c6b89a349f0e18499fda678f2515920",  # round[10].is_row
-    "1c05f271a417e04ff921c5c104701554",  # round[10].is_box
-    "ae87dff00ff11b68a68ed5fb03fc1567",  # round[10].ik_sch
-    "b2822d81abe6fb275faf103a078c0033",  # round[10].ik_add
-    "88db34fb1f807678d3f833c2194a759e",  # round[11].istart
-    "884a33781fdb75c2d380349e19f876fb",  # round[11].is_row
-    "975c66c1cb9f3fa8a93a28df8ee10f63",  # round[11].is_box
-    "1651a8cd0244beda1a5da4c10640bade",  # round[11].ik_sch
-    "810dce0cc9db8172b3678c1e88a1b5bd",  # round[11].ik_add
-    "ad9c7e017e55ef25bc150fe01ccb6395",  # round[12].istart
-    "adcb0f257e9c63e0bc557e951c15ef01",  # round[12].is_row
-    "1859fbc28a1c00a078ed8aadc42f6109",  # round[12].is_box
-    "a573c29fa176c498a97fce93a572c09c",  # round[12].ik_sch
-    "bd2a395d2b6ac438d192443e615da195",  # round[12].ik_add
-    "84e1fd6b1a5c946fdf4938977cfbac23",  # round[13].istart
-    "84fb386f1ae1ac97df5cfd237c49946b",  # round[13].is_row
-    "4f63760643e0aa85efa7213201a4e705",  # round[13].is_box
-    "101112131415161718191a1b1c1d1e1f",  # round[13].ik_sch
-    "5f72641557f5bc92f7be3b291db9f91a",  # round[13].ik_add
-    "6353e08c0960e104cd70b751bacad0e7",  # round[14].istart
-    "63cab7040953d051cd60e0e7ba70e18c",  # round[14].is_row
-    "00102030405060708090a0b0c0d0e0f0",  # round[14].is_box
-    "000102030405060708090a0b0c0d0e0f",  # round[14].ik_sch
-    "00112233445566778899aabbccddeeff",  # round[14].ioutput
-)
+# Notice that we test the CIPHER (ENCRYPT) vectors, not
+# INVERSE CIPHER (DECRYPT) or EQUIVALENT INVERSE CIPHER (DECRYPT).
+# That is because this implementation does not change the key schedule
+# inplace, and it does not rely on commutivity between
+# SubBytes()/ShiftRows() as described in the paper.
 
 
 @pytest.mark.parametrize(
     "vectors",
-    [inv_aes128_vectors, inv_aes192_vectors, inv_aes256_vectors]
+    [aes128_vectors, aes192_vectors, aes256_vectors],
 )
 def test_example_inv_vectors(vectors):
     start, key, tgt = map(
         hex_to_array,
         (vectors[0], vectors[1], vectors[-1])
     )
-    assert array_equal(decrypt_raw(start, key), tgt)
+    assert array_equal(decrypt_raw(tgt, key), start)

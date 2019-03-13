@@ -477,18 +477,19 @@ def decrypt_raw(state, key):
     exkeys = np.split(exkeys, exkeys.shape[1] / NB, axis=1)
 
     # First XOR is with just input + key (reverse order of roundkeys)
-    state = xor(state, exkeys[-1])
-
-    # Intermediate rounds - reverse order of roundkeys interation
-    for i in range(nr - 1, 0, -1):
-        state = inv_shift_rows(state)
-        state = inv_sub_bytes(state)
-        xor(state, exkeys[i], out=state)
-        state = mix_columns(state)
-
+    # Last round doesn't get an InvMixColumns
+    xor(state, exkeys[-1], out=state)
     state = inv_shift_rows(state)
     state = inv_sub_bytes(state)
-    state = xor(state, exkeys[0])
+
+    for i in range(nr - 1, 0, -1):
+        xor(state, exkeys[i], out=state)
+        state = inv_mix_columns(state)
+        state = inv_shift_rows(state)
+        state = inv_sub_bytes(state)
+
+    # One final (inverse) xor
+    xor(state, exkeys[0], out=state)
     return state
 
 
