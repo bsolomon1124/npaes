@@ -107,7 +107,7 @@ Rijndael Algorithm: Short Description & Technical Notes:
 from __future__ import division
 from __future__ import unicode_literals
 
-__all__ = ("encrypt_raw", )
+__all__ = ()
 __version__ = "0.1"
 
 import functools
@@ -167,8 +167,12 @@ SBOX = array([
 ], dtype=uint8)
 
 
-def sub_bytes(state, _sbox=SBOX):
-    return _sbox[state]
+def sub_bytes(state, out=None, _sbox=SBOX):
+    if out is not None:
+        out[:] = _sbox[state]
+        return out
+    else:
+        return _sbox[state]
 
 
 # Cols is also
@@ -182,11 +186,16 @@ colindexer = array([[0, 1, 2, 3],
 
 def shift_rows(
     state,
+    out=None,
     _rows=arange(4, dtype=uint8)[:, None],
     _cols=colindexer,
 ):
     """Cyclically shift last 3 rows in the State."""
-    return state[_rows, _cols]
+    if out is not None:
+        out[:] = state[_rows, _cols]
+        return out
+    else:
+        return state[_rows, _cols]
 
 
 ETABLE = array([
@@ -246,11 +255,18 @@ def gf_multiply(x, y, _ff=np.int(0xff)):
     return res
 
 
-def _mix_columns(state, pm0, pm1, pm2, pm3):
-    return gf_multiply(state[0], pm0) ^ \
-           gf_multiply(state[1], pm1) ^ \
-           gf_multiply(state[2], pm2) ^ \
-           gf_multiply(state[3], pm3)  # noqa
+def _mix_columns(state, out=None, pm0=None, pm1=None, pm2=None, pm3=None):
+    if out is not None:
+        out[:] = gf_multiply(state[0], pm0) ^ \
+                 gf_multiply(state[1], pm1) ^ \
+                 gf_multiply(state[2], pm2) ^ \
+                 gf_multiply(state[3], pm3)  # noqa
+        return out
+    else:
+        return gf_multiply(state[0], pm0) ^ \
+               gf_multiply(state[1], pm1) ^ \
+               gf_multiply(state[2], pm2) ^ \
+               gf_multiply(state[3], pm3)  # noqa
 
 
 ax_polynomial = array(
@@ -385,8 +401,10 @@ def expand_key(key):
     return w
 
 
-def encrypt_raw(inp, key):
-    """Encrypt a single input data block, `inp`, using `key`.
+def encrypt_raw(state, key):
+    """Encrypt a single input data block, `state`, using `key`.
+
+    Modifies `state` in-place!
 
     Parameters
     ----------
@@ -398,7 +416,7 @@ def encrypt_raw(inp, key):
     state: np.ndarray
     """
 
-    assert inp.size == BLOCKSIZE_BYTES
+    assert state.size == BLOCKSIZE_BYTES
     # We get the keys in "human form" and apply AES' column-based axis swap on them
     # (This should happen within `encrypt()`)
     # Retain the 'original' key for our expand_key methodology
@@ -410,19 +428,19 @@ def encrypt_raw(inp, key):
     exkeys = np.split(exkeys, exkeys.shape[1] / NB, axis=1)
 
     # First XOR is with just input + key
-    state = xor(inp, exkeys[0])
+    xor(state, exkeys[0], out=state)
 
     # Intermediate rounds
     for i in range(1, nr):
-        state = sub_bytes(state)
-        state = shift_rows(state)
-        state = mix_columns(state)
+        sub_bytes(state, out=state)
+        shift_rows(state, out=state)
+        mix_columns(state, out=state)
         xor(state, exkeys[i], out=state)
 
     # Final round before a final XOR.  No mixColumns here
-    state = sub_bytes(state)
-    state = shift_rows(state)
-    state = xor(state, exkeys[-1])
+    sub_bytes(state, out=state)
+    shift_rows(state, out=state)
+    xor(state, exkeys[-1], out=state)
     # TODO: this is returned in column-ordered format.
     # We will need to massage it back into row ordered before flattening
     return state
@@ -442,11 +460,16 @@ invcolindexer = array([[0, 1, 2, 3],
 
 def inv_shift_rows(
     state,
+    out=None,
     _rows=arange(4, dtype=uint8)[:, None],
     _cols=invcolindexer,
 ):
     """Cyclically shift last 3 rows in the State, inverse."""
-    return state[_rows, _cols]
+    if out is not None:
+        out[:] = state[_rows, _cols]
+        return out
+    else:
+        return state[_rows, _cols]
 
 
 INVSBOX = array([
@@ -470,11 +493,28 @@ INVSBOX = array([
 ], dtype=uint8)
 
 
-def inv_sub_bytes(state, _sbox=INVSBOX):
-    return _sbox[state]
+def inv_sub_bytes(state, out=None, _sbox=INVSBOX):
+    if out is not None:
+        out[:] = _sbox[state]
+        return out
+    else:
+        return _sbox[state]
 
 
 def decrypt_raw(state, key):
+    """Decrypt a single ciphertext data block, `state`, using `key`.
+
+    Modifies `state` in-place!
+
+    Parameters
+    ----------
+    inp: np.ndarray
+    key: np.ndarray
+
+    Returns
+    -------
+    state: np.ndarray
+    """
     assert state.size == BLOCKSIZE_BYTES
     nk = int(key.size / 4)
     nr = numrounds(nk)
@@ -485,14 +525,14 @@ def decrypt_raw(state, key):
     # First XOR is with just input + key (reverse order of roundkeys)
     # Last round doesn't get an InvMixColumns
     xor(state, exkeys[-1], out=state)
-    state = inv_shift_rows(state)
-    state = inv_sub_bytes(state)
+    inv_shift_rows(state, out=state)
+    inv_sub_bytes(state, out=state)
 
     for i in range(nr - 1, 0, -1):
         xor(state, exkeys[i], out=state)
-        state = inv_mix_columns(state)
-        state = inv_shift_rows(state)
-        state = inv_sub_bytes(state)
+        inv_mix_columns(state, out=state)
+        inv_shift_rows(state, out=state)
+        inv_sub_bytes(state, out=state)
 
     # One final (inverse) xor
     xor(state, exkeys[0], out=state)
