@@ -1,0 +1,4 @@
+# Numpy 1.16.x is the last release to support Python 2.7
+# It supports 3.5 to 3.7, but not 3.4.
+# NumPy 1.14.6 added Python 3.7 testing
+numpy<=1.16,>=1.14.6
