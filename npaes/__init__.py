@@ -232,7 +232,13 @@ LTABLE = array([
 
 
 def gf_multiply(x, y):
-    """Vectorized multiplication in GF(2^8)."""
+    """Vectorized multiplication in GF(2^8).
+
+    Note: this accepts arrays only, not scalars.  Otherwise the
+    assignment on the last line will fail and we don't feel
+    like making that check.
+    """
+
     res = LTABLE[x] + LTABLE[y]
     res = ETABLE[np.where(res > 0xff, res - np.int(0xff), res)]
     # Any number multiplied by zero GF(2^8) equals zero
@@ -241,10 +247,10 @@ def gf_multiply(x, y):
 
 
 def _mix_columns(state, pm0, pm1, pm2, pm3):
-    return gf_multiply(state[[0, 0, 0, 0]], pm0) ^ \
-           gf_multiply(state[[1, 1, 1, 1]], pm1) ^ \
-           gf_multiply(state[[2, 2, 2, 2]], pm2) ^ \
-           gf_multiply(state[[3, 3, 3, 3]], pm3)  # noqa
+    return gf_multiply(state[0], pm0) ^ \
+           gf_multiply(state[1], pm1) ^ \
+           gf_multiply(state[2], pm2) ^ \
+           gf_multiply(state[3], pm3)  # noqa
 
 
 ax_polynomial = array(
@@ -256,10 +262,10 @@ ax_polynomial = array(
     ], dtype=uint8)
 
 pm0, pm1, pm2, pm3 = (
-    ax_polynomial[:, [0, 0, 0, 0]],
-    ax_polynomial[:, [1, 1, 1, 1]],
-    ax_polynomial[:, [2, 2, 2, 2]],
-    ax_polynomial[:, [3, 3, 3, 3]],
+    ax_polynomial[:, [0]],
+    ax_polynomial[:, [1]],
+    ax_polynomial[:, [2]],
+    ax_polynomial[:, [3]],
 )
 
 inv_ax_polynomial = array(
@@ -271,10 +277,10 @@ inv_ax_polynomial = array(
     ], dtype=uint8)
 
 ipm0, ipm1, ipm2, ipm3 = (
-    inv_ax_polynomial[:, [0, 0, 0, 0]],
-    inv_ax_polynomial[:, [1, 1, 1, 1]],
-    inv_ax_polynomial[:, [2, 2, 2, 2]],
-    inv_ax_polynomial[:, [3, 3, 3, 3]],
+    inv_ax_polynomial[:, [0]],
+    inv_ax_polynomial[:, [1]],
+    inv_ax_polynomial[:, [2]],
+    inv_ax_polynomial[:, [3]],
 )
 
 mix_columns = functools.partial(
@@ -398,7 +404,7 @@ def encrypt_raw(inp, key):
     # Retain the 'original' key for our expand_key methodology
     # key = key.swapaxes(0, 1)
     nk = int(key.size / 4)
-    nr = numrounds(nk)  # 10
+    nr = numrounds(nk)
     exkeys = expand_key(key)  # 4 rows, NB * (nr + 1) columns (words)
     assert exkeys.shape[0] == NB
     exkeys = np.split(exkeys, exkeys.shape[1] / NB, axis=1)
@@ -471,7 +477,7 @@ def inv_sub_bytes(state, _sbox=INVSBOX):
 def decrypt_raw(state, key):
     assert state.size == BLOCKSIZE_BYTES
     nk = int(key.size / 4)
-    nr = numrounds(nk)  # 10
+    nr = numrounds(nk)
     exkeys = expand_key(key)  # 4 rows, NB * (nr + 1) columns (words)
     assert exkeys.shape[0] == NB
     exkeys = np.split(exkeys, exkeys.shape[1] / NB, axis=1)
