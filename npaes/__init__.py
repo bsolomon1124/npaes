@@ -231,7 +231,7 @@ LTABLE = array([
 ], dtype=np.int)
 
 
-def gf_multiply(x, y):
+def gf_multiply(x, y, _ff=np.int(0xff)):
     """Vectorized multiplication in GF(2^8).
 
     Note: this accepts arrays only, not scalars.  Otherwise the
@@ -240,7 +240,7 @@ def gf_multiply(x, y):
     """
 
     res = LTABLE[x] + LTABLE[y]
-    res = ETABLE[np.where(res > 0xff, res - np.int(0xff), res)]
+    res = ETABLE[np.where(res > 0xff, res - _ff, res)]
     # Any number multiplied by zero GF(2^8) equals zero
     res[~np.logical_and(x, y)] = 0
     return res
