@@ -8,6 +8,7 @@ import pytest
 from npaes import (
     array_to_hex,
     hex_to_array,
+    gf_multiply,
     mix_columns,
     shift_rows,
     sub_bytes,
@@ -37,6 +38,24 @@ def test_hex_to_array():
         hex_to_array(s, ndim=1),
         array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
     )
+
+
+@pytest.mark.parametrize("x,y,out", [
+    # From FIPS197 section 4.2
+    (np.array([0x57], dtype=uint8), np.array([0x13], dtype=uint8), 0xfe),
+    (np.array([0x57], dtype=uint8), np.array([0x83], dtype=uint8), 0xc1),
+])
+def test_gf_multiply(x, y, out):
+    assert gf_multiply(x, y) == out
+
+
+def test_array_to_hex():
+    a = "2b7e1516"
+    b = "0x2b 0x7e 0x15 0x16"
+    assert array_to_hex(hex_to_array(a, ndim=1)) == b
+    a = "e0 c8 d9 85 92 63 b1 b8 7f 63 35 be e8 c0 50 01"
+    b = "0xe0 0xc8 0xd9 0x85 0x92 0x63 0xb1 0xb8 0x7f 0x63 0x35 0xbe 0xe8 0xc0 0x50 0x1"
+    assert array_to_hex(hex_to_array(a, ndim=1)) == b
 
 
 # A sliver of Appendix B, Round 1
@@ -96,15 +115,6 @@ def test_inv_mix_columns(before, after):
         inv_mix_columns(after),
         before
     )
-
-
-def test_array_to_hex():
-    a = "2b7e1516"
-    b = "0x2b 0x7e 0x15 0x16"
-    assert array_to_hex(hex_to_array(a, ndim=1)) == b
-    a = "e0 c8 d9 85 92 63 b1 b8 7f 63 35 be e8 c0 50 01"
-    b = "0xe0 0xc8 0xd9 0x85 0x92 0x63 0xb1 0xb8 0x7f 0x63 0x35 0xbe 0xe8 0xc0 0x50 0x1"
-    assert array_to_hex(hex_to_array(a, ndim=1)) == b
 
 
 # ---------------------------------------------------------------------
