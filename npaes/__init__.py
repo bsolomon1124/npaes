@@ -393,10 +393,9 @@ def hex_to_array(s, ndim=2):
     """
 
     # bytearray, not bytes, is Py 2-3 compatible
-    b = list(bytearray.fromhex(s))
-    res = array(b, dtype=uint8)
+    res = array(bytearray.fromhex(s), dtype=uint8)
     if ndim == 2:
-        size = int(len(b) / 4)
+        size = int(len(res) / 4)
         res = res.reshape(size, 4).swapaxes(0, 1)
     return res
 
