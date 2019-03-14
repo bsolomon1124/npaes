@@ -3,6 +3,9 @@ from setuptools import setup
 
 from npaes import __version__
 
+# python setup.py sdist bdist_wheel
+# twine update dist/*
+
 setup(
     name="npaes",
     version=__version__,
@@ -17,7 +20,7 @@ setup(
     url="https://github.com/bsolomon1124/npaes",
     packages=["npaes"],
     long_description=open(
-        os.path.join(os.path.abspath(os.path.dirnaame(__file__)), "README.md")
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), "README.md")
     ).read(),
     long_description_content_type="text/markdown",
     classifiers=[
