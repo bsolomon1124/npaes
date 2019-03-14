@@ -5,11 +5,14 @@
 Based strictly on:
 
     Federal Information Processing Standards Publication 197
-    November 26, 2001
     https://csrc.nist.gov/publications/detail/fips/197/final
 
 Any reference to the paper in this source code is called just FIPS197.
 
+See also the original submission:
+
+    The Rijndael Block Cipher
+    https://csrc.nist.gov/archive/aes/rijndael/Rijndael-ammended.pdf
 ---------------------------------------------
 
 Rijndael Algorithm: Short Description & Technical Notes:
@@ -100,6 +103,10 @@ Rijndael Algorithm: Short Description & Technical Notes:
    from uint8 to float
    >>> np.divide(a, 2, out=a)  # raises TypeError
 
+ - We use vectorization *where possible*, but because of the nonlinear
+   nature of much of AES, and that computation of each round depends
+   on result of the last, Python loops do sneak into some places.
+
  - One last technical note is that, because we're working with bits,
    we work almost exclusively with np.uint8 dtype.
 """
@@ -113,7 +120,7 @@ __version__ = "0.1"
 import functools
 
 import numpy as np
-from numpy import arange, array, uint8, bitwise_xor as xor
+from numpy import arange, array, uint8, int16, bitwise_xor as xor
 
 # Rijndael processes data blocks of 128 bits
 BLOCKSIZE_BITS = 128
@@ -198,6 +205,7 @@ def shift_rows(
         return state[_rows, _cols]
 
 
+# ETABLE and LTABLE are lookup tables for matrix multiplication in GF(2^8)
 ETABLE = array([
     #  0     1     2     3     4     5     6     7     8     9     a     b     c     d     e     f
     0x01, 0x03, 0x05, 0x0F, 0x11, 0x33, 0x55, 0xFF, 0x1A, 0x2E, 0x72, 0x96, 0xA1, 0xF8, 0x13, 0x35,  # 0
@@ -218,7 +226,8 @@ ETABLE = array([
     0x39, 0x4B, 0xDD, 0x7C, 0x84, 0x97, 0xA2, 0xFD, 0x1C, 0x24, 0x6C, 0xB4, 0xC7, 0x52, 0xF6, 0x01,  # f
 ], dtype=uint8)
 
-# There is no value at 0,0 here, just a placeholder
+# There is no value at 0,0 here, just a placeholder.  dtype is int16, not
+# uint8, because we will be adding two of these together
 LTABLE = array([
     #  0     1     2     3     4     5     6     7     8     9     a     b     c     d     e     f
     0x00, 0x00, 0x19, 0x01, 0x32, 0x02, 0x1A, 0xC6, 0x4B, 0xC7, 0x1B, 0x68, 0x33, 0xEE, 0xDF, 0x03,  # 0
@@ -237,7 +246,7 @@ LTABLE = array([
     0x53, 0x39, 0x84, 0x3C, 0x41, 0xA2, 0x6D, 0x47, 0x14, 0x2A, 0x9E, 0x5D, 0x56, 0xF2, 0xD3, 0xAB,  # d
     0x44, 0x11, 0x92, 0xD9, 0x23, 0x20, 0x2E, 0x89, 0xB4, 0x7C, 0xB8, 0x26, 0x77, 0x99, 0xE3, 0xA5,  # e
     0x67, 0x4A, 0xED, 0xDE, 0xC5, 0x31, 0xFE, 0x18, 0x0D, 0x63, 0x8C, 0x80, 0xC0, 0xF7, 0x70, 0x07,  # f
-], dtype=np.int)
+], dtype=int16)
 
 
 def gf_multiply(x, y, _ff=np.int(0xff)):
@@ -323,21 +332,26 @@ def rot_word(word):
 # to each of the four bytes to produce an output word"
 sub_word = sub_bytes
 
-
-def key_to_words(key, nk):
-    assert nk in ALLOWED_NK
-    """Initial words from key key used in key expansion."""
-    return np.split(key, nk)
-
-
 # "The round constant word array, Rcon[i], contains the values
 # given by [xi-1,{00},{00},{00}], with x i-1 being powers of
-# x (x is denoted as {02}) in the field GF(28)"
+# x (x is denoted as {02}) in the field GF(2^8)"
+# (I.e. powers of X % polynomial in GF(2^8))
 #
 # Just a tuple for now, because tuple access is about 4 times as fast
 # as ndarray access, at least for this size & type
 #
 # Note: this is 1-indexed, hence empty first row
+#
+# Generated via:
+#
+# for i in range(1, 16):
+#     if i == 1:
+#         j = 1
+#     elif i > 1 and j < 0x80:
+#         j = 2 * j
+#     elif i > 1 and j >= 0x80:
+#         j = (2 * j) ^ 0x11b
+#     yield j
 RCON = (
     array([np.nan, np.nan, np.nan, np.nan]),  # NAN
     array([0x01, 0x00, 0x00, 0x00], dtype=uint8),  # 1
@@ -379,7 +393,7 @@ def expand_key(key):
     nr = numrounds(nk)  # 10
     nwords = NB * (nr + 1)
     w = np.empty((NB, nwords), dtype=uint8)
-    w[:, :nk] = key[indexer]  # word 0 through word nk;
+    w[:, :nk] = key[indexer]  # word 0 through word nk
     # Now fill out the rest of w.
     # The dreaded loop:
     # It may be near-impossible to do this without a loop, since
@@ -390,6 +404,7 @@ def expand_key(key):
         temp = w[:, i - 1]
         if i % nk == 0:
             temp = xor(
+                # XOR of a 4-byte word with length-4 lookup from RCON table
                 sub_word(rot_word(temp)),
                 RCON[int(i / nk)]
             )
@@ -541,6 +556,9 @@ def decrypt_raw(state, key):
 
 # ---------------------------------------------------------------------
 # Helpers
+# These are really only used in test_npaes.py for round-trip tests
+# of the copied-over example vectors, which are in hex format.
+# (And from a PDF, to boot.)
 
 
 def hex_to_array(s, ndim=2):
@@ -573,18 +591,7 @@ def hex_to_array(s, ndim=2):
 
 def array_to_hex(arr, sep=" "):
     """Inverse of `hex_to_array()`."""
-    return sep.join(map(hex, arr.flat))
-
-
-def genrcon(upper=16):
-    # [1, 2, 4, 8, 16, 32, 64, 128, 27, 54, 108, 216, 171, 77, 154]
-    for i in range(1, upper):
-        if i == 1:
-            j = 1
-        elif i > 1 and j < 0x80:
-            j = 2 * j
-        elif i > 1 and j >= 0x80:
-            j = (2 * j) ^ 0x11b
-        else:
-            raise Exception("Condition check failed")
-        yield j
+    # Or: binascii.hexlify(bytearray(out.swapaxes(0, 1).flat)).decode("ascii")
+    if arr.ndim == 1:
+        return sep.join(map("{:02x}".format, arr))
+    return sep.join(map("{:02x}".format, arr.swapaxes(0, 1).flat))

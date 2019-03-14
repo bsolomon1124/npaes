@@ -1,7 +1,6 @@
 # /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import numpy as np
 from numpy import array, array_equal, uint8, bitwise_xor as xor
 import pytest
 
@@ -42,20 +41,23 @@ def test_hex_to_array():
 
 @pytest.mark.parametrize("x,y,out", [
     # From FIPS197 section 4.2
-    (np.array([0x57], dtype=uint8), np.array([0x13], dtype=uint8), 0xfe),
-    (np.array([0x57], dtype=uint8), np.array([0x83], dtype=uint8), 0xc1),
+    (array([0x57], dtype=uint8), array([0x13], dtype=uint8), 0xfe),
+    (array([0x57], dtype=uint8), array([0x83], dtype=uint8), 0xc1),
 ])
 def test_gf_multiply(x, y, out):
-    assert gf_multiply(x, y) == out
+    res = gf_multiply(x, y)
+    if res.size == 1:
+        assert res.item() == out
+    else:
+        assert array_equal(res, out)
 
 
 def test_array_to_hex():
     a = "2b7e1516"
-    b = "0x2b 0x7e 0x15 0x16"
+    b = "2b 7e 15 16"
     assert array_to_hex(hex_to_array(a, ndim=1)) == b
     a = "e0 c8 d9 85 92 63 b1 b8 7f 63 35 be e8 c0 50 01"
-    b = "0xe0 0xc8 0xd9 0x85 0x92 0x63 0xb1 0xb8 0x7f 0x63 0x35 0xbe 0xe8 0xc0 0x50 0x1"
-    assert array_to_hex(hex_to_array(a, ndim=1)) == b
+    assert array_to_hex(hex_to_array(a, ndim=1)) == a
 
 
 # A sliver of Appendix B, Round 1
@@ -454,7 +456,7 @@ def test_encrypt_small():
             [0x25, 0xdc, 0x11, 0x6a],
             [0x84, 0x09, 0x85, 0x0b],
             [0x1d, 0xfb, 0x97, 0x32],
-        ], dtype=np.uint8)
+        ], dtype=uint8)
     assert array_equal(encrypt_raw(start, key), tgt)
 
 
