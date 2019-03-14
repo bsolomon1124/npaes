@@ -375,25 +375,25 @@ RCON = (
 def expand_key(key):
     """Key expansion routine to generate a key schedule.
 
-    Expand a short key into a single array of round keys.
+    Expand a short key into a single array of round keys, each 4 words.
+
+    The key expansion generates a total of Nb * (Nr + 1) 4-byte words:
+    - 128 -> 4 * (10 + 1) -> 44
+    - 192 -> 4 * (12 + 1) -> 52
+    - 256 -> 4 * (14 + 1) -> 60
+
+    This diverges from the specification in that they expanded key is
+    *not* a parameter that can be modified and remember its state.
+    Rather, it gets created here as an empty array and then filled.
     """
 
-    key = key.flatten()
-    nk = int(len(key) / 4)
-    assert nk in ALLOWED_NK
-    indexer = arange(len(key)).reshape(4, -1)
-
-    # They key expansion generates a total of Nb * (Nr + 1) 4-byte words:
-    # 128 -> 4 * (10 + 1) -> 44
-    # 192 -> 4 * (12 + 1) -> 52
-    # 256 -> 4 * (14 + 1) -> 60
-    #
     # The first *nk* words of the expanded key are filled with
-    # respective keys from the cipher key.  (Each word is 4 bytes)
-    nr = numrounds(nk)  # 10
+    # respective keys from the cipher key.  (Each word == 4 bytes)
+    nk = int(key.size / 4)
+    nr = numrounds(nk)
     nwords = NB * (nr + 1)
     w = np.empty((NB, nwords), dtype=uint8)
-    w[:, :nk] = key[indexer]  # word 0 through word nk
+    w[:, :nk] = key
     # Now fill out the rest of w.
     # The dreaded loop:
     # It may be near-impossible to do this without a loop, since
@@ -412,7 +412,6 @@ def expand_key(key):
             temp = sub_word(temp)
         w[:, i] = xor(w[:, i - nk], temp)
         i += 1
-    assert w.shape[1] == NB * (nr + 1)
     return w
 
 
@@ -431,7 +430,6 @@ def encrypt_raw(state, key):
     state: np.ndarray
     """
 
-    assert state.size == BLOCKSIZE_BYTES
     # We get the keys in "human form" and apply AES' column-based axis swap on them
     # (This should happen within `encrypt()`)
     # Retain the 'original' key for our expand_key methodology
@@ -439,7 +437,6 @@ def encrypt_raw(state, key):
     nk = int(key.size / 4)
     nr = numrounds(nk)
     exkeys = expand_key(key)  # 4 rows, NB * (nr + 1) columns (words)
-    assert exkeys.shape[0] == NB
     exkeys = np.split(exkeys, exkeys.shape[1] / NB, axis=1)
 
     # First XOR is with just input + key
@@ -530,11 +527,9 @@ def decrypt_raw(state, key):
     -------
     state: np.ndarray
     """
-    assert state.size == BLOCKSIZE_BYTES
     nk = int(key.size / 4)
     nr = numrounds(nk)
     exkeys = expand_key(key)  # 4 rows, NB * (nr + 1) columns (words)
-    assert exkeys.shape[0] == NB
     exkeys = np.split(exkeys, exkeys.shape[1] / NB, axis=1)
 
     # First XOR is with just input + key (reverse order of roundkeys)
