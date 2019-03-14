@@ -11,6 +11,29 @@ Advanced Encryption Standard (AES) NumPy implementation.
   <td>Supports</td>
   <td>Python 2.7 | 3.5 | 3.6 | 3.7</td>
 </tr>
+<tr>
+  <td>Latest Release</td>
+  <td>
+    <a href="https://pypi.org/project/npaes/">
+    <img src="https://img.shields.io/pypi/v/npaes.svg" alt="latest release" />
+    </a>
+  </td>
+</tr>
+<tr>
+  <td>Package Status</td>
+  <td>
+    <a href="https://pypi.org/project/npaes/">
+    <img src="https://img.shields.io/pypi/status/npaes.svg" alt="status" /></td>
+    </a>
+</tr>
+<tr>
+  <td>License</td>
+  <td>
+    <a href="https://github.com/bsolomon1124/npaes/blob/master/LICENSE">
+    <img src="https://img.shields.io/pypi/l/npaes.svg" alt="license" />
+    </a>
+</td>
+</tr>
 </table>
 
 This package implements the Advanced Encryption Standard (AES) as specified in Federal Information Processing Standards Publication 197 ("FIPS197"):
