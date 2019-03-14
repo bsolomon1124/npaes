@@ -114,13 +114,53 @@ Rijndael Algorithm: Short Description & Technical Notes:
 from __future__ import division
 from __future__ import unicode_literals
 
-__all__ = ()
+__all__ = ("AES", )
 __version__ = "0.1"
 
 import functools
 
 import numpy as np
 from numpy import arange, array, uint8, int16, bitwise_xor as xor
+from numpy.lib.stride_tricks import as_strided
+
+
+class AES(object):
+    def __init__(self, key):  # TODO: iv
+        if not isinstance(key, bytes):
+            raise TypeError("`key` must be bytes, not %s" % type(key))
+        if len(key) not in ALLOWED_KEYLENGTH_BYTES:
+            raise ValueError("len(key) must be 16, 24, or 32 bytes,"
+                             " not %s" % len(key))
+        self.key = key
+
+    def encrypt(self, plaintext):
+        if not isinstance(plaintext, bytes):
+            raise TypeError("`plaintext` must be bytes, not %s" % type(plaintext))
+        if len(plaintext) % BLOCKSIZE_BYTES != 0:
+            raise ValueError("len(plaintext) should be a multiple of 16"
+                             " (AES encrypts and decrypts in 128-bit blocks)."
+                             " Pad the input first.")
+        parray = plaintext_to_3darray(plaintext)  # 3d
+        karray = key_to_array(self.key)
+        # TODO: we could probably vectorize this and just operate with everything
+        # in 3 dimensions rather than 2
+        ciphertext = b""
+        for p in parray:
+            ciphertext += array_to_bytes(encrypt_raw(p, karray))
+        return ciphertext
+
+    def decrypt(self, ciphertext):
+        if not isinstance(ciphertext, bytes):
+            raise TypeError("`ciphertext` must be bytes, not %s" % type(ciphertext))
+        carray = plaintext_to_3darray(ciphertext)  # 3d
+        karray = key_to_array(self.key)
+        # TODO: we could probably vectorize this and just operate with everything
+        # in 3 dimensions rather than 2
+        plaintext = b""
+        for c in carray:
+            plaintext += array_to_bytes(decrypt_raw(c, karray))
+        return plaintext
+
 
 # Rijndael processes data blocks of 128 bits
 BLOCKSIZE_BITS = 128
@@ -590,3 +630,19 @@ def array_to_hex(arr, sep=" "):
     if arr.ndim == 1:
         return sep.join(map("{:02x}".format, arr))
     return sep.join(map("{:02x}".format, arr.swapaxes(0, 1).flat))
+
+
+def array_to_bytes(arr):
+    return bytes(arr.swapaxes(0, 1).flat)
+
+
+# Note: don't use np.frombuffer() here if tempted.  It returns read-only
+
+
+def plaintext_to_3darray(b):
+    whole = array(bytearray(b), dtype=np.uint8).reshape(-1, 4)
+    return as_strided(whole, (int(whole.size / BLOCKSIZE_BYTES), 4, 4)).swapaxes(1, 2)
+
+
+def key_to_array(key):
+    return array(bytearray(key), dtype=np.uint8).reshape(-1, 4).swapaxes(0, 1)
