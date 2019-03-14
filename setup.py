@@ -24,7 +24,7 @@ setup(
     ).read(),
     long_description_content_type="text/markdown",
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 2 - Pre-Alpha",
         "Topic :: Security :: Cryptography",
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 2",
