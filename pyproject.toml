@@ -1,0 +1,111 @@
+[build-system]
+requires = ["uv_build>=0.9,<0.12"]
+build-backend = "uv_build"
+
+[project]
+name = "npaes"
+version = "0.4"
+description = "Advanced Encryption Standard (AES) NumPy implementation"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Brad Solomon" }]
+requires-python = ">=3.10,<3.15"
+keywords = [
+    "aes",
+    "aes-128",
+    "aes-192",
+    "aes-256",
+    "encryption",
+    "decryption",
+    "numpy",
+    "symmetric",
+    "cipher",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Topic :: Security :: Cryptography",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = ["numpy>=2.1"]
+
+[project.urls]
+Homepage = "https://github.com/bsolomon1124/npaes"
+Repository = "https://github.com/bsolomon1124/npaes"
+Issues = "https://github.com/bsolomon1124/npaes/issues"
+Changelog = "https://github.com/bsolomon1124/npaes/blob/master/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.9",
+    "ty>=0.0.1a5",
+]
+
+[tool.uv.build-backend]
+module-name = "npaes"
+module-root = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-x --cov=npaes --cov-report=term --cov-fail-under=75"
+
+[tool.coverage.run]
+source = ["npaes"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "RET",  # flake8-return
+    "RUF",  # ruff-specific rules
+    "N",    # pep8-naming
+    "PTH",  # flake8-use-pathlib
+    "TID",  # flake8-tidy-imports
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E741",  # ambiguous variable name (we use `i`, `l` in AES code)
+    "B006",  # mutable default (used intentionally as cache)
+    "B008",  # function call in default (used intentionally as cache)
+    "N806",  # lowercase variable in function (we follow FIPS 197 naming, e.g. Nk, Nr, Nb)
+    "N802",  # function name lowercase (FIPS 197 uses SubBytes, ShiftRows, etc.)
+    "N803",  # argument name lowercase
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "N806",  # tests use upper-case FIPS test vector names
+    "N816",  # mixedCase globals ok in tests (FIPS example vectors)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ty.src]
+include = ["src"]
