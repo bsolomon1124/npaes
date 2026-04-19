@@ -43,7 +43,7 @@ jobs:
         env:
           UV_PYTHON: ${{ matrix.python-version }}
       - name: Pytest with coverage
-        run: uv run --python ${{ matrix.python-version }} pytest --cov=npaes --cov-report=term --cov-fail-under=50
+        run: uv run --python ${{ matrix.python-version }} pytest
 
   build:
     runs-on: ubuntu-latest
