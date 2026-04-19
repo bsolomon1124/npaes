@@ -1,0 +1,53 @@
+# https://taskfile.dev — run with `task <name>`, or `task --list` to see all.
+version: "3"
+
+tasks:
+  default:
+    cmds: [task --list]
+    silent: true
+
+  sync:
+    desc: Install / update the dev environment via uv.
+    cmds:
+      - uv sync --all-extras --dev
+
+  lint:
+    desc: Ruff check + format check.
+    cmds:
+      - uv run ruff check
+      - uv run ruff format --check
+
+  format:
+    desc: Apply ruff formatting and autofixes.
+    cmds:
+      - uv run ruff check --fix
+      - uv run ruff format
+
+  typecheck:
+    desc: Type-check with ty.
+    cmds:
+      - uv run ty check
+
+  test:
+    desc: Run the test suite with coverage.
+    cmds:
+      - uv run pytest
+
+  check:
+    desc: Run lint, type check, and tests.
+    deps: [lint, typecheck, test]
+
+  build:
+    desc: Build sdist + wheel into dist/.
+    cmds:
+      - uv build
+
+  hooks:
+    desc: Run prek (pre-commit) hooks against all files.
+    cmds:
+      - prek run --all-files
+
+  clean:
+    desc: Remove build artifacts and caches.
+    cmds:
+      - rm -rf dist build .pytest_cache .ruff_cache .coverage htmlcov

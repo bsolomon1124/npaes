@@ -1,0 +1,155 @@
+name: Publish
+
+# Tag-triggered release pipeline. The full chain is:
+#   build  -> publish (PyPI via OIDC)  -> sign (Sigstore)  -> release (GitHub)
+#
+# Security model (supply chain):
+#   * All actions pinned to immutable commit SHAs.
+#   * Each job declares the minimum token permissions it needs.
+#   * PyPI publishing uses Trusted Publishing (OIDC) — no long-lived API tokens.
+#   * The `pypi` environment on GitHub MUST be configured with required
+#     reviewers so a maintainer manually approves each release before
+#     `gh-action-pypi-publish` runs. See:
+#     https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment
+#   * Sigstore keyless signing produces detached `.sigstore` bundles for the
+#     sdist/wheel; these are attached to the GitHub Release for end-user verification.
+#   * An SBOM (uv-exported lockfile snapshot) is attached to the Release.
+
+on:
+  push:
+    tags: ["v*"]
+
+# Prevent concurrent releases of the same tag from racing.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build sdist + wheel + SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      - name: Verify tag matches pyproject version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          proj=$(uv run python -c "import tomllib,sys; print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
+          if [ "$tag" != "$proj" ]; then
+            echo "::error::git tag v$tag does not match pyproject version $proj"; exit 1
+          fi
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Generate SBOM (uv export)
+        run: |
+          mkdir -p sbom
+          uv export --format requirements-txt --no-dev --no-emit-project -o sbom/requirements.lock.txt
+          uv export --format requirements-txt -o sbom/requirements-dev.lock.txt
+          cp uv.lock sbom/uv.lock
+
+      - name: Upload dist
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-pypi:
+    name: Publish to PyPI (OIDC)
+    needs: build
+    runs-on: ubuntu-latest
+    # Environment gate — configure in GitHub settings with required reviewers.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/npaes/
+    permissions:
+      id-token: write # OIDC for Trusted Publishing
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+
+  sign:
+    name: Sigstore sign artifacts
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for keyless signing
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Sign with Sigstore
+        uses: sigstore/gh-action-sigstore-python@f514d46b907ebcd5bedc05145c03b69c1edd8b46 # v3.0.0
+        with:
+          inputs: ./dist/*.tar.gz ./dist/*.whl
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dist-signed
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  github-release:
+    name: Create GitHub release
+    needs: sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dist-signed
+          path: dist/
+
+      - name: Download SBOM
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sbom
+          path: sbom/
+
+      - name: Create release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/*.sigstore.json
+            sbom/*
