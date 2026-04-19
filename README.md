@@ -2,7 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/npaes.svg)](https://pypi.org/project/npaes/)
 [![Python versions](https://img.shields.io/pypi/pyversions/npaes.svg)](https://pypi.org/project/npaes/)
-[![License: Apache-2.0](https://img.shields.io/pypi/l/npaes.svg)](https://github.com/bsolomon1124/npaes/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/pypi/l/npaes.svg)](https://github.com/bsolomon1124/npaes/blob/master/LICENSE)
 
 Advanced Encryption Standard (AES) NumPy implementation.
 
@@ -93,4 +93,4 @@ See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
 
 ## License
 
-Apache-2.0. See [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).
