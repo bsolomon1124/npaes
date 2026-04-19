@@ -53,3 +53,7 @@ build → PyPI (OIDC, gated by `pypi` environment with required reviewers)
 Bump `project.version` in `pyproject.toml` and `__version__` in
 `src/npaes/__init__.py` in the same commit as the tag. A CI step
 fails the release if they disagree.
+
+## Pull request titles
+
+Follow Conventional Commits format: `<type>: <description>` (e.g. `chore: update dependencies`, `fix: handle edge case`, `feat: add new API`).
